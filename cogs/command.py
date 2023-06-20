@@ -1,19 +1,16 @@
 import os
 import discord
 from discord.ext import commands
-import tempfile
-import api
-import aiohttp
-import responses
-import asyncio
+from api import search
 
 
 
 class command(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.is_playing = False
         self.queue = []
+        self.voice_client = None
+        self.cur_audio = []
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -36,119 +33,154 @@ class command(commands.Cog):
             await ctx.send("You need to be connected to a voice channel to use this command.")
             return
 
-        voice_client = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
+        self.voice_client = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
 
-        if voice_client == None or not voice_client.is_connected():
-            voice_client = await voice_channel.connect()
-        elif voice_client.channel != voice_channel:
-            await voice_client.move_to(voice_channel)
+        if self.voice_client == None or not self.voice_client.is_connected():
+            self.voice_client = await voice_channel.connect()
+        elif self.voice_client.channel != voice_channel:
+            await self.voice_client.move_to(voice_channel)
 
-        audio_file, filename = await self.fetch_audio_stream(url)
-        # print(audio_file)
+        audio_file, filename = await search.fetch_audio_stream(url)
+        # print('hello')
 
-        # if (self.is_playing == False):
-        #     voice_client.play(discord.FFmpegPCMAudio(audio_file))
-        #     await ctx.send(f"Now playing: {filename}")
-        #     os.remove(audio_file)
-        # else:
-        #     self.queue.append[[audio_file, filename]]
+        is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
 
-        # if (self.is_playing == False):
-        # print(self.queue, self.is_playing)
+        print(is_playing, is_paused, filename)
 
-            # if (self.queue):
-            #     audio_file, filename = self.queue.pop()
-            #     print(filename)
-        
-            # voice_client.play(discord.FFmpegPCMAudio(audio_file), after=lambda e: self.play_next(voice_client, ctx))
-            # voice_client.play(discord.FFmpegPCMAudio(audio_file), after = lambda e: self.play_next(voice_client, ctx))
-            # await ctx.send(f"Now playing: {filename}")
-            # os.remove(audio_file)
-        self.queue.append([audio_file, filename])
-        if (self.is_playing == False):
-            await self.play_next(voice_client, ctx)
-
-        print('first method')
-        # elif (self.is_playing == True):
-        #     print('playing')
-        #     print(self.queue[0])
-
-        # print(self.is_playing)
-
-
-
-
-
-
-
-
-        # if (self.is_playing == False):
-            # self.queue.append[[audio_file, filename]]
-                # voice_client.play(discord.FFmpegPCMAudio(audio_file))
-                # return
-        # self.play_next(voice_client, ctx)
-
-        # # Play the audio stream as a voice message in the text channel
-        # voice_client.play(discord.FFmpegPCMAudio(audio_file))
-        # await ctx.send(f"Now playing: {filename}")
-
-        # # Clean up the temporary file after playback
-
-    # async def play_next_callback(self, voice_client, ctx):
-    #     print('next_callback')
-    #     await self.play_next(voice_client, ctx)
-
-
-    async def play_next(self, voice_client, ctx):
-        if self.queue:
-            self.is_playing = True
-            array  = (self.queue.pop(0))
-            audio, filename = discord.FFmpegPCMAudio(array[0]), array[1]
-            print(filename)
-            await ctx.send(f"Now playing: {filename}")
-
-            async def music():
-                await self.play_next(voice_client, ctx)
-                # await voice_client.play(audio, after=lambda e: self.play_next(voice_client, ctx))
-            voice_client.play(audio, after=await music())
+        if is_playing == False and is_paused == False:
+            self.queue.append([audio_file, filename])
+            self.play_next(ctx)
+        elif is_playing == False and is_paused == True:
+            self.queue.insert(0, [audio_file, filename])
+            self.play_next(ctx)
         else:
-            self.is_playing = False
+            self.queue.append([audio_file, filename])
+            await ctx.send("Song added to the queue. Type '/queue' to take a look at the songs")
 
 
 
-    def play_music(self, voice_client):
-        if self.queue:
-            array  = (self.queue.pop(0))
+
+    def play_next(self, ctx):
+        is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
+
+        print('play_next')
+        if self.queue and is_playing == False:
+            # TODO: SONG ENDING MESSAGE
+            # if is_playing == True:
+            #     print('song ended')
+            #     self.bot.loop.create_task(ctx.send(f"{filename} song ended"))
+            
+
+            array = self.queue.pop(0)
+            print(type(array[0]), "play")
             audio, filename = discord.FFmpegPCMAudio(array[0]), array[1]
-            voice_client.play(audio, after=lambda e: self.play_music(voice_client))
+            self.cur_audio = array
+
+            self.bot.loop.create_task(ctx.send(f"Now playing: {filename}"))
+            print('inside PLAY_NEXT', filename)
+            self.voice_client.play(audio, after=lambda e: self.play_next(ctx))
+            os.remove(audio)
+
+
+    @commands.command()
+    async def pause(self, ctx):
+        is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
+
+        print(is_playing, is_paused)
+        if is_paused == False:
+            self.voice_client.pause()
+            await ctx.send("Music paused")
+        else:
+            await ctx.send("No Music is playing")
+
+    @commands.command()
+    async def queue(self, ctx):
+        if (not self.queue):
+            await ctx.send("No music in the queue")
+            return
+        
+        list = ''
+        for i in range(len(self.queue)):
+            list += f"{i}. {self.queue[i][1]} \n"
+
+        await ctx.send(list)
+
+    @commands.command()
+    async def clear(self, ctx):
+        if (not self.queue):
+            await ctx.send("No music in the queue to clear")
+        else:
+            self.queue.clear()
+            await ctx.send("The queue is clear")
 
 
 
-    # @commands.command()
-    async def fetch_audio_stream(self, url):
-        # Invoke the search method to get the necessary parameters
-        search_url, headers, params = await api.search(url)
+    @commands.command()
+    async def play_now(self, ctx, url):
+        print('play_now')
+        if ctx.channel.type != discord.ChannelType.text:
+                await ctx.send("This command can only be used in a text channel.")
+                return
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(search_url, headers=headers, params=params) as response:
-                data = await response.json()
-                # Process the search results and extract the necessary information and assuming the first result is the desired track
-                track = data['data'][0]
+        voice_channel = ctx.author.voice.channel
 
-                # Get the preview URL of the track
-                preview_url = track['preview']
+        if voice_channel is None:
+            await ctx.send("You need to be connected to a voice channel to use this command.")
+            return
 
-                # Fetch the audio stream using the preview URL
-                async with session.get(preview_url) as audio_response:
-                    # Read the audio stream as bytes
-                    audio_bytes = await audio_response.read()
+        self.voice_client = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
 
-                    # Return the audio stream as a file-like object (BytesIO)
-                    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                        tmp_file.write(audio_bytes)
+        if self.voice_client == None or not self.voice_client.is_connected():
+            self.voice_client = await voice_channel.connect()
+        elif self.voice_client.channel != voice_channel:
+            await self.voice_client.move_to(voice_channel)
 
-                # Return the path to the temporary file and filename
-                return tmp_file.name, track['title']
+        audio_file, filename = await search.fetch_audio_stream(url)
+
+        is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
+
+        self.voice_client.stop()
+        await ctx.send(f"Now playing: {filename}")
+        self.cur_audio = [ audio_file, filename ]
+        self.voice_client.play(discord.FFmpegPCMAudio(audio_file), after=lambda e: self.play_next(ctx))
+
+
+    @commands.command()
+    async def skip(self, ctx):
+        is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
+        
+        if (is_playing or is_paused):
+            await ctx.send("Skipped!")
+            self.voice_client.stop()
+            self.play_next(ctx)
+        else:
+            await ctx.send("No song to skip")
+
+
+    @commands.command()
+    async def seek(self, ctx, time):
+        await ctx.send("Seeked")
+        self.voice_client.stop()
+        self.voice_client.play(discord.FFmpegPCMAudio(self.cur_audio[0], before_options=f'-ss {time}'), after=lambda e: self.play_next(ctx))
+        
+
+
+    @commands.command()
+    async def resume(self, ctx):
+        is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
+
+        if is_paused == True:
+            self.voice_client.resume()
+            await ctx.send("Music resumed")
+            self.play_next(ctx)
+        else:
+            await ctx.send("No Music was paused before to resume")
+
+
+
+
+
+
                 
     # @commands.Cog.
 

@@ -1,4 +1,4 @@
-import api
+import api.request as request
 import requests
 
 async def handle_responses(msg):
