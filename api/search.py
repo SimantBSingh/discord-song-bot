@@ -12,9 +12,11 @@ async def fetch_audio_stream(url):
                 data = await response.json()
                 # Process the search results and extract the necessary information and assuming the first result is the desired track
                 track = data['data'][0]
-
+                # print(track)
+                # print('hello                                    ', track)
                 # Get the preview URL of the track
                 preview_url = track['preview']
+                # print('hello                                    ', type(preview_url))
 
                 # Fetch the audio stream using the preview URL
                 async with session.get(preview_url) as audio_response:
@@ -26,4 +28,12 @@ async def fetch_audio_stream(url):
                         tmp_file.write(audio_bytes)
 
                 # Return the path to the temporary file and filename
-                return tmp_file.name, track['title']
+                # print(tmp_file)
+                # print('hello                                        ', track)
+                # print(track['album']['cover'])
+
+                return tmp_file.name, track
+            
+
+
+    

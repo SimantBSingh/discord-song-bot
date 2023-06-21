@@ -1,8 +1,9 @@
 import os
+import re
 import discord
 from discord.ext import commands
 from api import search
-
+from embeds import music_embed
 
 
 class command(commands.Cog):
@@ -14,7 +15,7 @@ class command(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print("ONline")
+        print("My Song Bot is Online")
 
     @commands.command()
     async def hello(self, ctx):
@@ -22,7 +23,8 @@ class command(commands.Cog):
 
 
     @commands.command()
-    async def play(self, ctx, url):
+    async def play(self, ctx, *args):
+        url = ' '.join(args)
         if ctx.channel.type != discord.ChannelType.text:
                 await ctx.send("This command can only be used in a text channel.")
                 return
@@ -40,22 +42,23 @@ class command(commands.Cog):
         elif self.voice_client.channel != voice_channel:
             await self.voice_client.move_to(voice_channel)
 
-        audio_file, filename = await search.fetch_audio_stream(url)
-        # print('hello')
+        audio_file, track = await search.fetch_audio_stream(url)
+
 
         is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
 
-        print(is_playing, is_paused, filename)
+        print(is_playing, is_paused, track['title'])
 
         if is_playing == False and is_paused == False:
-            self.queue.append([audio_file, filename])
+            self.queue.append([audio_file, track])
             self.play_next(ctx)
         elif is_playing == False and is_paused == True:
-            self.queue.insert(0, [audio_file, filename])
+            self.queue.insert(0, [audio_file, track])
             self.play_next(ctx)
         else:
-            self.queue.append([audio_file, filename])
-            await ctx.send("Song added to the queue. Type '/queue' to take a look at the songs")
+            self.queue.append([audio_file, track])
+            embed = music_embed.play_embed(ctx, track, len(self.queue))
+            await ctx.send(embed=embed)
 
 
 
@@ -70,14 +73,12 @@ class command(commands.Cog):
             #     print('song ended')
             #     self.bot.loop.create_task(ctx.send(f"{filename} song ended"))
             
-
             array = self.queue.pop(0)
-            print(type(array[0]), "play")
-            audio, filename = discord.FFmpegPCMAudio(array[0]), array[1]
+            audio, track = discord.FFmpegPCMAudio(array[0]), array[1]
             self.cur_audio = array
+            
+            self.bot.loop.create_task(ctx.send(embed = music_embed.play_embed(ctx, track, 0)))
 
-            self.bot.loop.create_task(ctx.send(f"Now playing: {filename}"))
-            print('inside PLAY_NEXT', filename)
             self.voice_client.play(audio, after=lambda e: self.play_next(ctx))
             os.remove(audio)
 
@@ -97,13 +98,8 @@ class command(commands.Cog):
     async def queue(self, ctx):
         if (not self.queue):
             await ctx.send("No music in the queue")
-            return
-        
-        list = ''
-        for i in range(len(self.queue)):
-            list += f"{i}. {self.queue[i][1]} \n"
-
-        await ctx.send(list)
+        else:
+            await ctx.send(embed=music_embed.queue_embed(ctx, self.queue))
 
     @commands.command()
     async def clear(self, ctx):
@@ -135,13 +131,13 @@ class command(commands.Cog):
         elif self.voice_client.channel != voice_channel:
             await self.voice_client.move_to(voice_channel)
 
-        audio_file, filename = await search.fetch_audio_stream(url)
+        audio_file, track = await search.fetch_audio_stream(url)
 
         is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
 
         self.voice_client.stop()
-        await ctx.send(f"Now playing: {filename}")
-        self.cur_audio = [ audio_file, filename ]
+        await ctx.send(embed = music_embed.play_embed(ctx, track, 0))
+        self.cur_audio = [ audio_file, track ]
         self.voice_client.play(discord.FFmpegPCMAudio(audio_file), after=lambda e: self.play_next(ctx))
 
 
