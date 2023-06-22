@@ -4,7 +4,7 @@ import discord
 
 def play_embed(ctx, track, queue_pos):
     dur = ''
-    duration = int(track["duration"])
+    duration = int(track['tracks']['items'][0]['duration_ms']) // 1000
 
     while duration > 60:
         temp = duration // 60
@@ -12,7 +12,7 @@ def play_embed(ctx, track, queue_pos):
         duration -= (temp * 60)
 
     dur += str(duration)
-    embed=discord.Embed(title=f"{track['title']} - {track['artist']['name']}")
+    embed=discord.Embed(title=f"{track['tracks']['items'][0]['name']} - {track['tracks']['items'][0]['artists'][0]['name']}")
 
     
     if ctx.author.avatar:
@@ -20,7 +20,7 @@ def play_embed(ctx, track, queue_pos):
     else:
         embed.set_author(name=ctx.author.display_name, url='https://github.com/Simant-Singh')
     # print('third')
-    embed.set_thumbnail(url=track['album']['cover'])
+    embed.set_thumbnail(url=track['tracks']['items'][0]['album']['images'][0]['url'])
     # print('fourth')
     embed.add_field(name="Duration", value=dur, inline=True)
     if queue_pos > 0:

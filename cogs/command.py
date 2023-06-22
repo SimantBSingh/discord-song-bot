@@ -1,5 +1,4 @@
 import os
-import re
 import discord
 from discord.ext import commands
 from api import search
@@ -29,6 +28,10 @@ class command(commands.Cog):
                 await ctx.send("This command can only be used in a text channel.")
                 return
 
+        if ctx.author.voice == None:
+            await ctx.send('Connect to a voice channel')
+            return
+        
         voice_channel = ctx.author.voice.channel
 
         if voice_channel is None:
@@ -42,12 +45,15 @@ class command(commands.Cog):
         elif self.voice_client.channel != voice_channel:
             await self.voice_client.move_to(voice_channel)
 
-        audio_file, track = await search.fetch_audio_stream(url)
+
+        # audio_file, track = await search.fetch_audio_stream(url)
+        # self.voice_client.play(discord.FFmpegPCMAudio(audio))
+        audio_file, track = search.search_music(url)
 
 
         is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
 
-        print(is_playing, is_paused, track['title'])
+        print(is_playing, is_paused, track['tracks']['items'][0]['name'])
 
         if is_playing == False and is_paused == False:
             self.queue.append([audio_file, track])

@@ -1,39 +1,21 @@
-import tempfile
-import aiohttp
+
+
 from api import request
+import requests
 
 
-async def fetch_audio_stream(url):
-        # Invoke the search method to get the necessary parameters
-        search_url, headers, params = await request.search(url)
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(search_url, headers=headers, params=params) as response:
-                data = await response.json()
-                # Process the search results and extract the necessary information and assuming the first result is the desired track
-                track = data['data'][0]
-                # print(track)
-                # print('hello                                    ', track)
-                # Get the preview URL of the track
-                preview_url = track['preview']
-                # print('hello                                    ', type(preview_url))
+token = request.get_token()
 
-                # Fetch the audio stream using the preview URL
-                async with session.get(preview_url) as audio_response:
-                    # Read the audio stream as bytes
-                    audio_bytes = await audio_response.read()
+def search_music(name):
+    url = 'https://api.spotify.com/v1/search?'
+    headers = request.get_auth_header(token)
+    query = f'q={name}&type=track&limit=1&include_external=audio'
+    query_url = url + query
 
-                    # Return the audio stream as a file-like object (BytesIO)
-                    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                        tmp_file.write(audio_bytes)
+    res = requests.get(query_url, headers=headers)
+    json_res = res.json()
 
-                # Return the path to the temporary file and filename
-                # print(tmp_file)
-                # print('hello                                        ', track)
-                # print(track['album']['cover'])
-
-                return tmp_file.name, track
-            
-
+    return json_res['tracks']['items'][0]['preview_url'], json_res
 
     
