@@ -1,6 +1,7 @@
 import discord 
 from tabulate import tabulate
 from table2ascii import table2ascii, Alignment, PresetStyle
+from db import connect
 
 
 
@@ -47,17 +48,25 @@ def queue_embed(ctx, queue):
 
 
 
-def playlist_embed(playlist_names, tracks):
-    playlist_tracks = {}
-    for name in playlist_names:
-        track = tracks[name]
-        playlist_tracks[name] = [f"{t['track_name']}" for t in track]
+def playlist_embed(ctx):
+    dbname = connect.get_database()
+    collection = dbname['songData']
+    cursor = collection.find()
+
+    playlist_names, playlist_tracks = [], {}
+    for document in cursor:
+        # print(document)
+        if (document['user_id'] == ctx.author.id):
+            for playlist in document['playlists']:
+                playlist_names.append( playlist['playlist_name'] )
+                playlist_tracks[ playlist['playlist_name'] ] = [f"{track['track_name']}" for track in playlist['tracks']]
+            break
+
+    if not playlist_names: return
 
     max_tracks = max(len(tracks) for tracks in playlist_tracks.values())
     table = []
 
-    # print(max_tracks)
-    print(playlist_tracks)
     for i in range(max_tracks):
         row = []
         for name in playlist_names:

@@ -3,6 +3,8 @@ import discord
 from discord.ext import commands
 from api import search
 from embeds import music_embed
+from db import admin
+
 
 
 class command(commands.Cog):
@@ -11,41 +13,20 @@ class command(commands.Cog):
         self.queue = []
         self.voice_client = None
         self.cur_audio = []
-        self.playlist_names = []
-        self.playlist_tracks = {}
-        self.playlist_url = ''
+        # self.playlist_names = []
+        # self.playlist_tracks = {}
+        # self.playlist_url = ''
+        self.collection = None
 
 
 
     @commands.Cog.listener()
     async def on_ready(self):
         print("My Song Bot is Online")
+        # self.get_playlist()
+        # dbname = admin.get_database()
+        # self.collection = dbname['songData']
 
-        spotify_playlist = search.get_playlist()
-        self.playlist_url = spotify_playlist[0]['external_urls']['spotify']
-
-        for items in spotify_playlist:
-            id = items['id']
-            tracks = search.get_tracks_from_playlist(id)['tracks']['items']
-            tracks_arr = []
-
-            for track in tracks:
-                if track['track']['preview_url'] ==  None:
-                    preview_url, trackobj = search.fetch_audio_stream(track['track']['name'])
-                else:
-                    preview_url = track['track']['preview_url']
-                tracks_arr.append({
-                'track_name' : track['track']['name'],
-                'artist' : track['track']['artists'][0]['name'],
-                'duration' : track['track']['duration_ms'],
-                'cover_image_url' : track['track']['album']['images'][0]['url'],
-                'preview_url' : preview_url,
-            })
-
-            self.playlist_names.append(items['name'])
-
-            self.playlist_tracks[items['name']] = tracks_arr
-        # print("finished")
 
             
 
@@ -90,7 +71,7 @@ class command(commands.Cog):
 
         is_playing, is_paused = self.voice_client.is_playing(), self.voice_client.is_paused()
 
-        print(is_playing, is_paused, track['track_name'])
+        # print(is_playing, is_paused, track['track_name'])
 
         if is_playing == False and is_paused == False:
             self.queue.append([audio_file, track])
@@ -220,8 +201,10 @@ class command(commands.Cog):
 
     @commands.command()
     async def my_playlist(self, ctx):
-        res = music_embed.playlist_embed(self.playlist_names, self.playlist_tracks)
-        await ctx.send(f"Your spotify playlist:  {self.playlist_url}")
+        res = music_embed.playlist_embed(ctx)
+        if not res: 
+            await ctx.send('No songs')
+            return
         await ctx.send(f"```\n{res}\n```")
 
     @commands.command()
@@ -249,22 +232,114 @@ class command(commands.Cog):
             await self.voice_client.move_to(voice_channel)
 
         self.voice_client.stop()
-        if name.isdigit():
-            name = self.playlist_names[int(name)-1] 
-
-        print(name)
-        if name in self.playlist_names:
-            self.queue = []
-            for track in self.playlist_tracks[name]:
-                # print(f"{track}\n")
-                self.queue.append([track['preview_url'], track])
-
-            self.play_next(ctx)
 
 
+        if (admin.check_playlist_exist(ctx.author.id, name) <= 0):
+            await ctx.send("Playlist of given name doesn't exist")
+            return
 
-                
-    # @commands.Cog.
+
+        result = admin.get_playlist(ctx.author.id, name)
+        arr = []
+
+        for document in result:
+            playlist = document["playlists"][0]
+            for track in playlist["tracks"]:
+                arr.append([track['preview_url'], track])
+
+        if not arr: await ctx.send('No tracks in the playlist given')
+
+        self.queue = arr.copy()
+        self.play_next(ctx)
+
+
+
+    @commands.command()
+    async def create_playlist(self, ctx, *args):
+        user_id = ctx.author.id
+        playlist_name = ' '.join(args)
+        existing_object = admin.check_userID(user_id)
+
+        if existing_object:
+            query_result = admin.check_playlist_exist(user_id, playlist_name)
+            if query_result > 0:
+                print('hehe')
+                await ctx.send("Playlist object with playlist name already exists.")
+                return
+            else:
+                # Add the new playlist_obj to the existing object
+                admin.create_playlist(user_id, playlist_name)
+        else:
+            # Create the object and add user_id attribute
+            admin.create_user_playlist(user_id, playlist_name)
+
+        await ctx.send("New Playlist Created")
+        
+
+    @commands.command()
+    async def add_music(self, ctx, *args):
+        user_id = ctx.author.id
+        string_args = ' '.join(args)
+        arguments = str(string_args).split(",")
+        if len(arguments) <= 1:
+            await ctx.send('PLaylist name or music or both not typed properly')
+        playlist_name, song = arguments[0].strip(), arguments[1].strip()
+
+        # print(playlist_name, song)
+        audio_file, track = search.spotify_search_music(song)
+        if audio_file == None: 
+            audio_file, track = search.fetch_audio_stream(song)
+
+        if_track_exists = admin.check_track_exists_using_url(user_id, playlist_name, audio_file)
+
+        if_playlist_exists = admin.check_playlist_exist(user_id, playlist_name)
+        if (if_playlist_exists <= 0):
+            await ctx.send("Playlist with that name doesn't exist. Create a playlist")
+        elif if_track_exists > 0:
+            await ctx.send('track already exists')
+        else:
+            result = admin.add_track(user_id, playlist_name, track)
+            if result.modified_count > 0:
+                await ctx.send("Track added to the playlist.")
+            else: 
+                await ctx.send("DB ERROR")
+
+
+
+
+    @commands.command()
+    async def remove_music(self, ctx, *args):
+        user_id = ctx.author.id
+        string_args = ' '.join(args)
+        arguments = str(string_args).split(",")
+        if len(arguments) <= 1:
+            await ctx.send('PLaylist name or music or both not typed properly')
+        playlist_name, song = arguments[0].strip(), arguments[1].strip()
+
+        if (admin.check_playlist_exist(user_id, playlist_name) <= 0):
+            await ctx.send("Playlist with that name doesn't exist. Create a playlist")
+            return
+        result = admin.remove_music(user_id, playlist_name, song)
+
+        if result.modified_count > 0: await ctx.send('Track removed successfully')
+        else: await ctx.send('Track not found in the given playlist')
+
+
+    @commands.command()
+    async def remove_playlist(self, ctx, *args):
+        user_id = ctx.author.id
+        playlist_name = ' '.join(args)
+
+        result = admin.remove_playlist(user_id, playlist_name)
+
+        if result.modified_count > 0:
+            await ctx.send("Playlist removed successfully.")
+        else:
+            await ctx.send("Playlist not found.")
+
+
+
+
 
         
 async def setup(bot):

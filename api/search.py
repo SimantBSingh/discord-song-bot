@@ -35,9 +35,6 @@ def spotify_search_music(name):
     return json_res['tracks']['items'][0]['preview_url'], track
 
 
-import tempfile
-import aiohttp
-
 
 def fetch_audio_stream(url):
 
@@ -64,30 +61,6 @@ def fetch_audio_stream(url):
 
 
 
-
-
-
-def get_playlist():
-    user_id = request.get_userID()
-    url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
-    headers = request.get_auth_header(token)
-
-    data = requests.get(url, headers=headers)
-    # print("res", res)
-    res = data.json()
-    # print(json_res)
-    return res['items']
-
-
-def get_tracks_from_playlist(playlist_id):
-    url = f"https://api.spotify.com/v1/playlists/{playlist_id}"
-    headers = request.get_auth_header(token)
-
-    data = requests.get(url, headers=headers)
-    res = data.json()
-
-    # print(res)
-    return res
 
 
 
