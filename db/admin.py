@@ -126,27 +126,6 @@ def remove_playlist(user_id, playlist_name):
     
 
 
-'''
-    songData = {
-        user_id: String
-        playlists : [playlist_object]
-    }       
-    playlist_object = {
-        playlist_name: String
-        tracks = [track_object]
-    }
-    
-    track_object = {
-        name: String,
-        artist : String
-        duration : int
-        cover_image_url : String
-        preview_url: String
-    }
-
-
-    This is a schema object. Write a query that checks whether a playlist with a given name exists or not. If it does exist then remove that playlist.
-'''
 
     
 
