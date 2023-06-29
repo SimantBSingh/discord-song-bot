@@ -1,9 +1,12 @@
 import os
 import discord
+import pandas as pd
 from discord.ext import commands
 from api import search
 from embeds import music_embed
 from db import admin
+from dataset import recommend
+
 
 
 
@@ -13,10 +16,8 @@ class command(commands.Cog):
         self.queue = []
         self.voice_client = None
         self.cur_audio = []
-        # self.playlist_names = []
-        # self.playlist_tracks = {}
-        # self.playlist_url = ''
-        self.collection = None
+        self.recommended_indices = []
+
 
 
 
@@ -26,6 +27,24 @@ class command(commands.Cog):
         # self.get_playlist()
         # dbname = admin.get_database()
         # self.collection = dbname['songData']
+        # print(admin.get_playlist(754924183871422496, 'list1'))
+        if_playlist_exists = admin.check_playlist_exist(754924183871422496, 'list1') <= 0
+        if (if_playlist_exists):
+            print("Playlist with that name doesn't exist. Create a playlist")
+            return
+        
+        print('Searching songs to recommend you...')
+        result, self.recommended_indices = recommend.list_similar_songs(self.recommended_indices)
+    
+        for i in range(len(result)):
+            print(f"{i+1}. {result[i]['track_name']}")
+
+
+
+
+
+
+
 
 
             
@@ -62,9 +81,13 @@ class command(commands.Cog):
 
         # audio_file, track = await search.fetch_audio_stream(url)
         audio_file, track = search.spotify_search_music(url)
-        print(audio_file)
+        spotify_track_id = track['track_id'] 
+        # print(audio_file)
         if audio_file == None: 
             audio_file, track = search.fetch_audio_stream(url)
+
+        track['id'] = spotify_track_id
+
         # print(audio_file)
         # self.voice_client.play(discord.FFmpegPCMAudio(audio_file))
 
@@ -233,6 +256,7 @@ class command(commands.Cog):
 
         self.voice_client.stop()
 
+        print(ctx.author.id)
 
         if (admin.check_playlist_exist(ctx.author.id, name) <= 0):
             await ctx.send("Playlist of given name doesn't exist")
@@ -283,26 +307,33 @@ class command(commands.Cog):
         arguments = str(string_args).split(",")
         if len(arguments) <= 1:
             await ctx.send('PLaylist name or music or both not typed properly')
-        playlist_name, song = arguments[0].strip(), arguments[1].strip()
+        playlist_name, songs = arguments[0].strip(), arguments[1::]
 
         # print(playlist_name, song)
-        audio_file, track = search.spotify_search_music(song)
-        if audio_file == None: 
-            audio_file, track = search.fetch_audio_stream(song)
-
-        if_track_exists = admin.check_track_exists_using_url(user_id, playlist_name, audio_file)
-
         if_playlist_exists = admin.check_playlist_exist(user_id, playlist_name)
         if (if_playlist_exists <= 0):
             await ctx.send("Playlist with that name doesn't exist. Create a playlist")
-        elif if_track_exists > 0:
-            await ctx.send('track already exists')
-        else:
-            result = admin.add_track(user_id, playlist_name, track)
-            if result.modified_count > 0:
-                await ctx.send("Track added to the playlist.")
-            else: 
-                await ctx.send("DB ERROR")
+
+        for song in songs:
+            song = song.strip()
+            audio_file, track = search.spotify_search_music(song)
+            spotify_track_id = track['track_id'] 
+            # print(audio_file)
+            if audio_file == None: 
+                audio_file, track = search.fetch_audio_stream(song)
+
+            track['track_id'] = spotify_track_id
+
+            if_track_exists = admin.check_track_exists_using_url(user_id, playlist_name, audio_file)
+
+            if if_track_exists > 0:
+                await ctx.send('track already exists')
+            else:
+                result = admin.add_track(user_id, playlist_name, track)
+                if result.modified_count > 0:
+                    await ctx.send("Track added to the playlist.")
+                else: 
+                    await ctx.send("DB ERROR")
 
 
 
@@ -336,6 +367,26 @@ class command(commands.Cog):
             await ctx.send("Playlist removed successfully.")
         else:
             await ctx.send("Playlist not found.")
+
+
+    @commands.command()
+    async def recommend(self, ctx, *args):
+        user_id = ctx.author.id
+        playlist_name = ' '.join(args)
+        # print(playlist_name)
+
+        if_playlist_exists = admin.check_playlist_exist(user_id, playlist_name) <= 0
+        if (if_playlist_exists):
+            await ctx.send("Playlist with that name doesn't exist. Create a playlist")
+            return
+        
+        await ctx.send('Searching songs to recommend you...')
+        result, self.recommended_indices = recommend.list_similar_songs(self.recommended_indices)
+    
+        if result:
+            await ctx.send(embed = music_embed.recommendation_embed(result))
+        else:
+            await ctx.send("Sorry no recommendations available")
 
 
 

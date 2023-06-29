@@ -1,7 +1,7 @@
 import discord 
-from tabulate import tabulate
-from table2ascii import table2ascii, Alignment, PresetStyle
+# from tabulate import tabulate
 from db import connect
+from table2ascii import table2ascii, Alignment, PresetStyle
 
 
 
@@ -42,7 +42,7 @@ def queue_embed(ctx, queue):
     embed = discord.Embed(title="Songs in queue")
     for i in range(len(queue)):
         # print(queue[i][1])
-        embed.add_field(name=i+1, value=f"{queue[i][1]['track_name']} - {queue[i][1]['artist']}", inline=False)
+        embed.add_field(name='\u200B', value=f"{i}. {queue[i][1]['track_name']} - {queue[i][1]['artist']}", inline=False)
 
     return embed
 
@@ -87,6 +87,16 @@ def playlist_embed(ctx):
     )
 
     return output
+
+
+def recommendation_embed(track_obj):
+
+    embed = discord.Embed(title="Recommended songs")
+
+    for i in range(len(track_obj)):
+        embed.add_field(name='\u200B', value=f"{i+1}. {track_obj[i]['track_name']} - {track_obj[i]['artist']}", inline=False)
+
+    return embed
 
 
         

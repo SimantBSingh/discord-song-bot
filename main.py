@@ -16,7 +16,7 @@ async def load():
 
 async def main():
     await load()
-    await bot.start('<TOKEN>')
+    await bot.start('TOKEN')
 
 
 asyncio.run(main())
