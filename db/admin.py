@@ -30,19 +30,22 @@ def get_playlist(id, playlist_name):
 
     
 
-def check_track_exists_using_url(user_id, playlist_name, url):
+def check_track_exists(user_id, playlist_name, track_id):
     query = {
         'user_id': user_id,
         'playlists': {
             '$elemMatch': {
                 'playlist_name': playlist_name,
-                'tracks.preview_url': url
+                'tracks.track_id': track_id
             }
         }  
     }
     result = collection.count_documents(query)
     # print(result)
     return result
+
+
+# def check_track_exists_using_id
 
 
 
@@ -88,12 +91,12 @@ def check_playlist_exist(user_id, playlist_name):
             "user_id": user_id,
             "playlists": {
                 "$elemMatch": {
-                    "playlist_name": playlist_name
+                    "playlist_name": 'l'
                 }
             }
         }
-    result = collection.find(query)
-    return result.count()
+    result = collection.find_one(query)
+    return result
 
 
 def create_playlist(user_id, playlist_name):

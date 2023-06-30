@@ -63,6 +63,7 @@ def spotify_get_track(track_id):
     }
 
     # print(json_res['tracks']['items'])
+    # print(track)
     return track
 
 
@@ -97,12 +98,14 @@ def get_attributes(track_id):
     res = requests.get(url=url, headers=headers)
     json_res = res.json()
 
-    # desired_attributes = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence']
+    desired_attributes = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence']
+
+    extracted_dict = {}
+    for attr in desired_attributes:
+        extracted_dict[attr] = json_res[attr]
     
     # extracted_dict = {attr: json_res[attr] for attr in desired_attributes}
-    print(json_res)
-
-    # return extracted_dict
+    return extracted_dict
             
 
 
